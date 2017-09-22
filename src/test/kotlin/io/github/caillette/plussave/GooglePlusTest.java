@@ -9,12 +9,10 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.remote.DesiredCapabilities;
-import org.openqa.selenium.remote.RemoteWebDriver;
 
 import javax.swing.JOptionPane;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Map;
 
 /**
  *
@@ -46,13 +44,13 @@ public class GooglePlusTest {
   public void name() throws Exception {
     final DesiredCapabilities capabilities = DesiredCapabilities.firefox() ;
     capabilities.setCapability( "driver.version", "3.5.3" ) ;
-    final WebDriver driver = new RemoteWebDriver(
+    final WebDriver driver = new RemoteWebDriver2(
         HUB_URL,
         capabilities
     ) ;
 
     driver.get( "https://plus.google.com/+LaurentCaillette" ) ;
-    JOptionPane.showMessageDialog( null, "Sign on and press OK." ) ;
+    JOptionPane.showMessageDialog( null, "Once signed in, press OK." ) ;
 
 
     // Do not close the browser so we can reuse sessions.

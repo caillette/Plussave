@@ -20,7 +20,6 @@ import org.openqa.selenium.NoSuchWindowException;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Platform;
 import org.openqa.selenium.Point;
-import org.openqa.selenium.SearchContext;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
@@ -49,7 +48,6 @@ import org.openqa.selenium.remote.RemoteKeyboard;
 import org.openqa.selenium.remote.RemoteLogs;
 import org.openqa.selenium.remote.RemoteMouse;
 import org.openqa.selenium.remote.RemoteWebDriver;
-import org.openqa.selenium.remote.RemoteWebElement;
 import org.openqa.selenium.remote.Response;
 import org.openqa.selenium.remote.SessionId;
 import org.openqa.selenium.remote.UnreachableBrowserException;
@@ -62,7 +60,6 @@ import org.openqa.selenium.security.UserAndPassword;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -70,6 +67,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -115,7 +113,7 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
   public RemoteWebDriver2(
       final CommandExecutor executor,
       final Capabilities desiredCapabilities
-  ) {
+  ) throws IOException {
     this( executor, desiredCapabilities, true ) ;
   }
 
@@ -123,7 +121,7 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
       final CommandExecutor executor,
       final Capabilities desiredCapabilities,
       final boolean useSessionId
-  ) {
+  ) throws IOException {
     this.executor = executor ;
     if( executor instanceof HttpCommandExecutor ) {
       hubUrl = ( ( HttpCommandExecutor ) executor ).getAddressOfRemoteServer() ;
@@ -137,27 +135,34 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
       ( ( NeedsLocalLogs ) executor ).setLocalLogs( localLogs ) ;
     }
 
-    try {
-      startClient( desiredCapabilities ) ;
-    } catch( RuntimeException e ) {
-      try {
-        stopClient( desiredCapabilities ) ;
-      } catch( final Exception ignored ) {
-        // Ignore the clean-up exception. We'll propagate the original failure.
-      }
-      throw e ;
+    if( useSessionId ) {
+      getExistingSessionId( desiredCapabilities ) ;
     }
 
-    try {
-      startSession( desiredCapabilities );
-    } catch( RuntimeException e ) {
+    if( this.getSessionId() == null ) {
+
       try {
-        quit();
-      } catch( Exception ignored ) {
-        // Ignore the clean-up exception. We'll propagate the original failure.
+        startClient( desiredCapabilities ) ;
+      } catch( RuntimeException e ) {
+        try {
+          stopClient( desiredCapabilities ) ;
+        } catch( final Exception ignored ) {
+          // Ignore the clean-up exception. We'll propagate the original failure.
+        }
+        throw e ;
       }
 
-      throw e ;
+      try {
+        startSession( desiredCapabilities );
+      } catch( RuntimeException e ) {
+        try {
+          quit();
+        } catch( Exception ignored ) {
+          // Ignore the clean-up exception. We'll propagate the original failure.
+        }
+
+        throw e ;
+      }
     }
   }
 
@@ -165,15 +170,15 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
   public RemoteWebDriver2(
       final URL remoteAddress,
       final Capabilities desiredCapabilities
-  ) {
+  ) throws IOException {
     this( new HttpCommandExecutor( remoteAddress ), desiredCapabilities ) ;
   }
 
 
   /**
-   * Query the hub to get existing sessions.
+   * Query the hub for existing sessions.
    */
-  public void getExistingSessionId() throws IOException {
+  public void getExistingSessionId( final Capabilities desiredCapabilities ) throws IOException {
     if( hubUrl != null ) {
       final URL sessionsUrl ;
       try {
@@ -188,8 +193,38 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
       }
       final String json = Resources.asCharSource( sessionsUrl, Charsets.UTF_8 ).read() ;
       final SessionQueryResult sessionQueryResult = decodeSessions( json ) ;
+      if( ! sessionQueryResult.sessionDescriptors.isEmpty() ) {
+        session : for( final SessionQueryResult.SessionDescriptor sessionDescriptor :
+            sessionQueryResult.sessionDescriptors
+        ) {
+//          for( final Map.Entry< String, ? > desired : desiredCapabilities.asMap().entrySet() ) {
+//            final Object capability =
+//                sessionDescriptor.capabilities.getCapability( desired.getKey() ) ;
+//            if( ! NON_MATCHED_CAPABILITIES.contains( desired.getKey() ) ) {
+//              if( desired.getValue() != null &&
+//                  ! Objects.equals( capability, desired.getValue() )
+//              ) {
+//                break session ;
+//              }
+//            }
+//          }
+          final Map< String, Object > capabilitiesAsmap = new HashMap<> (
+              sessionDescriptor.capabilities.asMap() ) ;
+          capabilitiesAsmap.put(
+              "driver.version", desiredCapabilities.getCapability( "driver.version") ) ;
+          this.capabilities = new ImmutableCapabilities( capabilitiesAsmap ) ;
+          sessionId = sessionDescriptor.id ;
+          logger.info( "Reusing existing " + SessionId.class.getSimpleName() + " " + sessionId +
+              " from session container, with compatible capabilities." ) ;
+        }
+      }
     }
   }
+
+  private static final ImmutableSet< String > NON_MATCHED_CAPABILITIES = ImmutableSet.of(
+      "driver.version",
+      CapabilityType.VERSION
+  ) ;
 
   public static SessionQueryResult decodeSessions( final String json ) {
     final JsonToBeanConverter jsonToBeanConverter = new JsonToBeanConverter() ;
@@ -654,12 +689,12 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
    * @param level The log level to use.
    */
   public void setLogLevel( Level level ) {
-    this.level = level;
+    this.level = level ;
   }
 
-  protected Response execute( String driverCommand, Map<String, ?> parameters ) {
-    Command command = new Command( sessionId, driverCommand, parameters );
-    Response response;
+  protected Response execute( final String driverCommand, Map< String, ? > parameters ) {
+    Command command = new Command( sessionId, driverCommand, parameters ) ;
+    Response response ;
 
     long start = System.currentTimeMillis();
     String currentName = Thread.currentThread().getName();
@@ -676,12 +711,12 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
 
       // Unwrap the response value by converting any JSON objects of the form
       // {"ELEMENT": id} to RemoteWebElements.
-      Object value = converter.apply( response.getValue() );
-      response.setValue( value );
+      Object value = converter.apply( response.getValue() ) ;
+      response.setValue( value ) ;
     } catch( WebDriverException e ) {
-      throw e;
+      throw e ;
     } catch( Exception e ) {
-      log( sessionId, command.getName(), command, RemoteWebDriver2.When.EXCEPTION );
+      log( sessionId, command.getName(), command, RemoteWebDriver2.When.EXCEPTION ) ;
       String errorMessage = "Error communicating with the remote browser. " +
           "It may have died.";
       if( driverCommand.equals( DriverCommand.NEW_SESSION ) ) {
