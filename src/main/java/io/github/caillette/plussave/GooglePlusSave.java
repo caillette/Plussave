@@ -55,15 +55,28 @@ public class GooglePlusSave {
         "]"
     ) ) ;
     for( final WebElement webElement : elements ) {
-      process( webElement ) ;
+      processPostElement( webElement ) ;
     }
 
     // Do not close the browser so we can reuse sessions.
     // driver.quit() ;
   }
 
-  private static void process( final WebElement webElement ) {
-    final List< WebElement > links = webElement.findElements( By.xpath( ".//a" ) ) ;
+  private static void processPostElement( final WebElement postRootElement ) {
+
+    final List< WebElement > postTextElement = postRootElement.findElements( By.xpath(
+        ".//div[ contains( @id, 'body:' ) ]//div[ " +
+        POST_TEXT_ELEMENT_LEAF_XPATH_CONDITION + " ]"
+    ) ) ;
+    final String postTextHtml ;
+    if( postTextElement.isEmpty() ) {
+      postTextHtml = "[empty]" ;
+    } else {
+      postTextHtml = postTextElement.get( 0 ).getAttribute( "innerHTML" ) ;
+    }
+
+    final List< WebElement > links = postRootElement.findElements(
+        By.xpath( ".//a" ) ) ;
 
     final String linksAsSingleLine = Joiner.on( ", " )
         .join( links.stream()
@@ -71,7 +84,7 @@ public class GooglePlusSave {
     ;
     System.out.println(
         WebElement.class.getSimpleName() + ": " +
-        webElement.getText().replaceAll( "\n", "" ) +
+        postTextHtml.replaceAll( "\n", "" ) +
         linksAsSingleLine
     ) ;
   }
@@ -103,6 +116,11 @@ public class GooglePlusSave {
 
     System.setProperty( "webdriver.gecko.driver", "/usr/local/bin/geckodriver" ) ;
   }
+
+  /**
+   * RTL untested.
+   */
+  private static final String POST_TEXT_ELEMENT_LEAF_XPATH_CONDITION = "@dir='ltr' or @dir='rtl'" ;
 
 }
 
