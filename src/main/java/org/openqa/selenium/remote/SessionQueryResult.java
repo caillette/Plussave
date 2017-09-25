@@ -2,6 +2,7 @@ package org.openqa.selenium.remote;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.remote.SessionId;
 
@@ -55,8 +56,15 @@ public final class SessionQueryResult {
      * {@code http://localhost:4444/wd/hub/sessions}, only the {@code sessionId} key has
      * a different name.
      */
-    public Map< String, ? > asHandshakeMap() {
-      throw new UnsupportedOperationException( "TODO" ) ;
+    public Map< ?, ? > asHandshakeMap() {
+      return ImmutableMap.of(
+          "value",
+          ImmutableMap.of(
+              "sessionId", id.toString(),
+              "capabilities",
+              ImmutableMap.copyOf( capabilities.asMap() )
+          )
+      ) ;
     }
   }
 }

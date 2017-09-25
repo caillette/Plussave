@@ -50,6 +50,7 @@ public class HttpCommandExecutor2 extends HttpCommandExecutor {
 
   private static HttpClient.Factory defaultClientFactory;
 
+  private SessionQueryResult.SessionDescriptor forcedSessionDescriptor = null ;
   private final URL remoteServer;
   private final HttpClient client;
   private final Map<String, CommandInfo> additionalCommands;
@@ -91,6 +92,12 @@ public class HttpCommandExecutor2 extends HttpCommandExecutor {
 
     this.additionalCommands = additionalCommands;
     this.client = httpClientFactory.createClient(remoteServer);
+  }
+
+  public void setForcedSessionDescriptor(
+      final SessionQueryResult.SessionDescriptor forcedSessionDescriptor
+  ) {
+    this.forcedSessionDescriptor = forcedSessionDescriptor ;
   }
 
   private static synchronized HttpClient.Factory getDefaultClientFactory() {
@@ -142,7 +149,7 @@ public class HttpCommandExecutor2 extends HttpCommandExecutor {
       if (commandCodec != null) {
         throw new SessionNotCreatedException("Session already exists");
       }
-      ProtocolHandshake2 handshake = new ProtocolHandshake2();
+      final ProtocolHandshake2 handshake = new ProtocolHandshake2( forcedSessionDescriptor ) ;
       log(LogType.PROFILER, new HttpProfilerLogEntry(command.getName(), true));
       ProtocolHandshake.Result result = handshake.createSession(client, command);
       Dialect dialect = result.getDialect();

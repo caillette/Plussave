@@ -56,6 +56,7 @@ import static org.openqa.selenium.remote.CapabilityType.LOGGING_PREFS;
 import static org.openqa.selenium.remote.CapabilityType.SUPPORTS_JAVASCRIPT;
 
 /**
+ * Support session reuse.
  *
  * @author Alter Hu https://sqa.stackexchange.com/a/20223
  * @author those of Selenium 3.4.0.
@@ -70,7 +71,12 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
 
   private ErrorHandler errorHandler = new ErrorHandler();
   private final URL hubUrl ;
-  private CommandExecutor executor;
+
+  /**
+   * HACK.
+   */
+  private HttpCommandExecutor2 executor ;
+
   private Capabilities capabilities;
   private SessionId sessionId;
   private SessionQueryResult.SessionDescriptor sessionDescriptor = null ;
@@ -91,23 +97,19 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
   }
 
   public RemoteWebDriver2(
-      final CommandExecutor executor,
+      final HttpCommandExecutor2 executor,
       final Capabilities desiredCapabilities
   ) throws IOException {
     this( executor, desiredCapabilities, true ) ;
   }
 
   public RemoteWebDriver2(
-      final CommandExecutor executor,
+      final HttpCommandExecutor2 executor,
       final Capabilities desiredCapabilities,
       final boolean useSessionId
   ) throws IOException {
     this.executor = executor ;
-    if( executor instanceof HttpCommandExecutor ) {
-      hubUrl = ( ( HttpCommandExecutor ) executor ).getAddressOfRemoteServer() ;
-    } else {
-      hubUrl = null ;
-    }
+    hubUrl = executor.getAddressOfRemoteServer() ;
 
     init( desiredCapabilities ) ;
 
@@ -119,30 +121,27 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
       getExistingSessionId( desiredCapabilities ) ;
     }
 
-    if( this.getSessionId() == null ) {
-
+    try {
+      startClient( desiredCapabilities ) ;
+    } catch( RuntimeException e ) {
       try {
-        startClient( desiredCapabilities ) ;
-      } catch( RuntimeException e ) {
-        try {
-          stopClient( desiredCapabilities ) ;
-        } catch( final Exception ignored ) {
-          // Ignore the clean-up exception. We'll propagate the original failure.
-        }
-        throw e ;
+        stopClient( desiredCapabilities ) ;
+      } catch( final Exception ignored ) {
+        // Ignore the clean-up exception. We'll propagate the original failure.
+      }
+      throw e ;
+    }
+
+    try {
+      startSession( desiredCapabilities );
+    } catch( RuntimeException e ) {
+      try {
+        quit();
+      } catch( Exception ignored ) {
+        // Ignore the clean-up exception. We'll propagate the original failure.
       }
 
-      try {
-        startSession( desiredCapabilities );
-      } catch( RuntimeException e ) {
-        try {
-          quit();
-        } catch( Exception ignored ) {
-          // Ignore the clean-up exception. We'll propagate the original failure.
-        }
-
-        throw e ;
-      }
+      throw e ;
     }
   }
 
@@ -290,6 +289,8 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
     }
     Map<String, ?> parameters = paramBuilder.build();
 
+    // HACK.
+    executor.setForcedSessionDescriptor( sessionDescriptor ) ;
     Response response = execute( DriverCommand.NEW_SESSION, parameters );
 
     Map<String, Object> rawCapabilities = ( Map<String, Object> ) response.getValue();
@@ -395,7 +396,7 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
     return executor;
   }
 
-  protected void setCommandExecutor( CommandExecutor executor ) {
+  protected void setCommandExecutor( HttpCommandExecutor2 executor ) {
     this.executor = executor;
   }
 

@@ -76,6 +76,12 @@ public class ProtocolHandshake2 {
 
   private final static Logger LOG = Logger.getLogger(ProtocolHandshake2.class.getName());
 
+  private final SessionQueryResult.SessionDescriptor forcedSessionQueryResult ;
+
+  public ProtocolHandshake2( SessionQueryResult.SessionDescriptor forcedSessionQueryResult ) {
+    this.forcedSessionQueryResult = forcedSessionQueryResult ;
+  }
+
   /**
    * Patterns that are acceptable to send to a w3c remote end.
    */
@@ -337,29 +343,37 @@ public class ProtocolHandshake2 {
   private Optional<ProtocolHandshake.Result> createSession( HttpClient client, InputStream newSessionBlob, long size)
     throws IOException {
     // Create the http request and send it
-    HttpRequest request = new HttpRequest(HttpMethod.POST, "/session");
+    final InitialHandshakeResponse initialResponse ;
 
-    request.setHeader(CONTENT_LENGTH, String.valueOf(size));
-    request.setHeader(CONTENT_TYPE, JSON_UTF_8.toString());
-    request.setContent(newSessionBlob);
-    long start = System.currentTimeMillis();
-    HttpResponse response = client.execute(request, true);
-    long time = System.currentTimeMillis() - start;
+    if( forcedSessionQueryResult == null ) {
+      HttpRequest request = new HttpRequest(HttpMethod.POST, "/session");
 
-    // Ignore the content type. It may not have been set. Strictly speaking we're not following the
-    // W3C spec properly. Oh well.
-    Map<?, ?> blob;
-    try {
-      blob = new Gson().fromJson(response.getContentString(), MAP_TYPE);
-    } catch (JsonParseException e) {
-      throw new WebDriverException(
-          "Unable to parse remote response: " + response.getContentString());
+      request.setHeader(CONTENT_LENGTH, String.valueOf(size));
+      request.setHeader(CONTENT_TYPE, JSON_UTF_8.toString());
+      request.setContent(newSessionBlob);
+      long start = System.currentTimeMillis();
+      HttpResponse response = client.execute(request, true);
+      long time = System.currentTimeMillis() - start;
+
+      // Ignore the content type. It may not have been set. Strictly speaking we're not following the
+      // W3C spec properly. Oh well.
+      Map<?, ?> blob;
+      try {
+        blob = new Gson().fromJson(response.getContentString(), MAP_TYPE);
+      } catch (JsonParseException e) {
+        throw new WebDriverException(
+            "Unable to parse remote response: " + response.getContentString());
+      }
+
+      initialResponse = new InitialHandshakeResponse(
+          time,
+          response.getStatus(),
+          blob);
+    } else {
+      // HACK.
+      initialResponse = new InitialHandshakeResponse(
+          0, 200, forcedSessionQueryResult.asHandshakeMap() ) ;
     }
-
-    InitialHandshakeResponse initialResponse = new InitialHandshakeResponse(
-        time,
-        response.getStatus(),
-        blob);
 
     return Stream.of(
         new JsonWireProtocolResponse().getResponseFunction(),
