@@ -1,15 +1,14 @@
 package io.github.caillette.plussave;
 
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Attribute;
 import org.jsoup.nodes.Element;
 import org.openqa.selenium.By;
-import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.remote.RemoteWebDriver2;
+import org.openqa.selenium.remote.RemoteWebElement;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import javax.swing.JOptionPane;
@@ -18,7 +17,6 @@ import java.net.URL;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -57,17 +55,16 @@ public class GooglePlusSave {
       JOptionPane.showMessageDialog( null, "Once signed in, press OK." ) ;
     }
 
-    // Contains all the posts, split in 3 columns.
-    final WebElement topElement = driver.findElement( By.xpath( "//c-wiz/div" ) ) ;
-
     // After loading the page, this is the message that appears.
     final WebElement loadingProgressWebElement = driver.findElement(
         By.xpath( "//div[ not( div ) and contains( ., '" + MESSAGE_LOADING_MORE_POSTS + "' ) ]" ) ) ;
 
     final WebDriverWait webDriverWait = new WebDriverWait( driver, 5, 100 ) ;
+    final Blacklist< String > webElementIdentifiersAdded = new Blacklist<>() ;
 
-    for( int i = 0 ; i < 1000 ; i ++ ) {  // Should swallow exceptions.
+    for( int i = 0 ; i < 1000 ; i ++ ) {
       try {
+        processSomeElements( driver, webElementIdentifiersAdded ) ;
         driver.executeScript( "window.scrollTo( 0, document.body.scrollHeight )" ) ;
         webDriverWait.until(
             d -> loadingProgressWebElement.getText().contains( MESSAGE_MORE_POSTS_LOADED ) ) ;
@@ -77,17 +74,31 @@ public class GooglePlusSave {
       }
     }
 
+
+    // Do not close the browser so we can reuse sessions.
+    // driver.quit() ;
+  }
+
+  private static WebElement processSomeElements(
+      final RemoteWebDriver2 driver,
+      final Blacklist< String > webElementsAdded
+  ) {
+    // Get all of them. There is no more than the browser can handle, anyways.
+    // Yes this gets slower and slower but is much simpler than dealing with more-or-less
+    // contiguous elements across columns.
     final List< WebElement > elements = driver.findElements( By.xpath( "//div[ " +
         "contains( @jslog, 'track:impression,click' ) and " +
         "contains( @tabindex, '-1' ) " +
         "]"
     ) ) ;
     for( final WebElement webElement : elements ) {
-      processArticleElement( webElement ) ;
+      final RemoteWebElement remoteWebElement = ( RemoteWebElement ) webElement ;
+      // Just skip those already processed.
+      if( ! webElementsAdded.addIfMissing( remoteWebElement.getId() ) ) {
+        processArticleElement( webElement ) ;
+      }
     }
-
-    // Do not close the browser so we can reuse sessions.
-    // driver.quit() ;
+    return elements.get( elements.size() - 1 ) ;
   }
 
   private static void processArticleElement( final WebElement articleRootElement ) {
