@@ -1,6 +1,13 @@
 package io.github.caillette.plussave;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Attribute;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.remote.DesiredCapabilities;
@@ -9,8 +16,9 @@ import org.openqa.selenium.remote.RemoteWebDriver2;
 import javax.swing.JOptionPane;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 /**
  *
@@ -45,7 +53,7 @@ public class GooglePlusSave {
       JOptionPane.showMessageDialog( null, "Once signed in, press OK." ) ;
     }
 
-    for( int i = 0 ; i < 10 ; i ++ ) {
+    for( int i = 0 ; i < 300 ; i ++ ) {
       driver.executeScript( "window.scrollTo( 0, document.body.scrollHeight )") ;
     }
 
@@ -55,40 +63,102 @@ public class GooglePlusSave {
         "]"
     ) ) ;
     for( final WebElement webElement : elements ) {
-      processPostElement( webElement ) ;
+      processArticleElement( webElement ) ;
     }
 
     // Do not close the browser so we can reuse sessions.
     // driver.quit() ;
   }
 
-  private static void processPostElement( final WebElement postRootElement ) {
+  private static void processArticleElement( final WebElement articleRootElement ) {
 
-    final List< WebElement > postTextElement = postRootElement.findElements( By.xpath(
+    final List< WebElement > articleTextElement = articleRootElement.findElements( By.xpath(
         ".//div[ contains( @id, 'body:' ) ]//div[ " +
         POST_TEXT_ELEMENT_LEAF_XPATH_CONDITION + " ]"
     ) ) ;
-    final String postTextHtml ;
-    if( postTextElement.isEmpty() ) {
-      postTextHtml = "[empty]" ;
+    final String articleTextHtml ;
+    if( articleTextElement.isEmpty() ) {
+      articleTextHtml = MAGIC_EMPTY ;
     } else {
-      postTextHtml = postTextElement.get( 0 ).getAttribute( "innerHTML" ) ;
+      articleTextHtml = articleTextElement.get( 0 ).getAttribute( "innerHTML" ) ;
     }
 
-    final List< WebElement > links = postRootElement.findElements(
-        By.xpath( ".//a" ) ) ;
+    final List< WebElement > links = articleRootElement.findElements(
+        By.xpath( ".//a[ contains( @rel, 'nofollow' ) ]" ) ) ;
 
-    final String linksAsSingleLine = Joiner.on( ", " )
-        .join( links.stream()
-        .map( e -> e.getAttribute( "href" ) ).collect( Collectors.toList() ) )
-    ;
+    final Element linkElement ;
+    if( links.isEmpty() ) {
+      linkElement = null ;
+    } else {
+      // The content of the 'a' element is a lot of div we don't want here.
+      linkElement = new Element( "a" ) ;
+      final String href = links.get( 0 ).getAttribute( "href" ) ;
+      linkElement.attributes().put( new Attribute( "href", href ) ) ;
+    }
     System.out.println(
         WebElement.class.getSimpleName() + ": " +
-        postTextHtml.replaceAll( "\n", "" ) +
-        linksAsSingleLine
+        articleTextHtml.replaceAll( "\n", "" ) + " " +
+        anchorAsText( linkElement )
     ) ;
+
+    final List< WebElement > commentWebElements = articleRootElement.findElements( By.xpath(
+        ".//div[ contains( @aria-label, 'comments' ) ]"
+    ) ) ;
+    for( final WebElement commentWebElement : commentWebElements ) {
+      processCommentRootElement( commentWebElement ) ;
+    }
+
   }
 
+  private static void processCommentRootElement( final WebElement commentRootWebElement ) {
+    final List< WebElement > commentWebElements = commentRootWebElement.findElements( By.xpath(
+        "./div/div/div/div/span/span"
+    ) ) ;
+    for( final WebElement commentWebElement : commentWebElements ) {
+      final String innerHTML = commentWebElement.getAttribute( "innerHTML" ) ;
+      final Element commentBody = Jsoup.parseBodyFragment( innerHTML ).body() ;
+      // jsoup uses JQuery-like selectors.
+      final Element link = commentBody.select( "a[href]" ).first() ;
+
+      if( link != null ) {
+        cleanAnchor( link ) ;
+      }
+
+      System.out.println( "  Comment: " + commentBody.text() + " " + anchorAsText( link ) ) ;
+    }
+  }
+
+  /**
+   * Keep only {@code href} attribute and inner text.
+   */
+  private static void cleanAnchor( final Element anchorElement ) {
+    Preconditions.checkArgument( "a".equals( anchorElement.nodeName() ), anchorElement.html() ) ;
+    final Set< String > attributesToRemove = new LinkedHashSet<>() ;
+    for( final Attribute attribute : anchorElement.attributes() ) {
+      if( ! "href".equals( attribute.getKey() ) ) {
+        attributesToRemove.add( attribute.getKey() ) ;
+      }
+    }
+    for( final String attributeToRemove : attributesToRemove ) {
+      anchorElement.removeAttr( attributeToRemove ) ;
+    }
+  }
+
+  private static String anchorAsText( final Element anchorElement ) {
+    if( anchorElement == null ) {
+      return "" ;
+    } else {
+      final StringBuilder stringBuilder = new StringBuilder() ;
+      stringBuilder
+          .append( "<a href='" )
+          .append( anchorElement.attr( "href" ) )
+          .append( "' >" )
+          .append( anchorElement.text() )
+          .append( "</a>" )
+      ;
+      return stringBuilder.toString() ;
+    }
+  }
 
 
   /**
@@ -121,6 +191,9 @@ public class GooglePlusSave {
    * RTL untested.
    */
   private static final String POST_TEXT_ELEMENT_LEAF_XPATH_CONDITION = "@dir='ltr' or @dir='rtl'" ;
+
+  private static final String MAGIC_EMPTY = "[empty]" ;
+
 
 }
 
