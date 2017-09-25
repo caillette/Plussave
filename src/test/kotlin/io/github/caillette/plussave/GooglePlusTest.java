@@ -2,8 +2,8 @@ package io.github.caillette.plussave;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
-import io.github.caillette.plussave.selenium.RemoteWebDriver2;
-import io.github.caillette.plussave.selenium.SessionQueryResult;
+import org.openqa.selenium.remote.RemoteWebDriver2;
+import org.openqa.selenium.remote.SessionQueryResult;
 import org.junit.Test;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
@@ -25,7 +25,7 @@ import java.net.URL;
  * <p>
  * Run a Selenium Server (same as a Hub and a single Node):
  * <pre>
- * java -jar ~/Downloads/selenium-server-standalone-3.5.3.jar -role sandalone
+ * java -jar ~/Downloads/selenium-server-standalone-3.5.3.jar -role standalone
  * </pre>
  * Default port for Hub is 4444.
  */

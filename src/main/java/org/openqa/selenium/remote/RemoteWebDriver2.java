@@ -1,4 +1,4 @@
-package io.github.caillette.plussave.selenium;
+package org.openqa.selenium.remote;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
@@ -32,26 +32,6 @@ import org.openqa.selenium.logging.LoggingHandler;
 import org.openqa.selenium.logging.LoggingPreferences;
 import org.openqa.selenium.logging.Logs;
 import org.openqa.selenium.logging.NeedsLocalLogs;
-import org.openqa.selenium.remote.CapabilityType;
-import org.openqa.selenium.remote.Command;
-import org.openqa.selenium.remote.CommandExecutor;
-import org.openqa.selenium.remote.DesiredCapabilities;
-import org.openqa.selenium.remote.DriverCommand;
-import org.openqa.selenium.remote.ErrorHandler;
-import org.openqa.selenium.remote.ExecuteMethod;
-import org.openqa.selenium.remote.FileDetector;
-import org.openqa.selenium.remote.HttpCommandExecutor;
-import org.openqa.selenium.remote.JsonToBeanConverter;
-import org.openqa.selenium.remote.LocalFileDetector;
-import org.openqa.selenium.remote.RemoteExecuteMethod;
-import org.openqa.selenium.remote.RemoteKeyboard;
-import org.openqa.selenium.remote.RemoteLogs;
-import org.openqa.selenium.remote.RemoteMouse;
-import org.openqa.selenium.remote.RemoteWebDriver;
-import org.openqa.selenium.remote.Response;
-import org.openqa.selenium.remote.SessionId;
-import org.openqa.selenium.remote.UnreachableBrowserException;
-import org.openqa.selenium.remote.UselessFileDetector;
 import org.openqa.selenium.remote.internal.JsonToWebElementConverter;
 import org.openqa.selenium.remote.internal.WebElementToJsonConverter;
 import org.openqa.selenium.security.Credentials;
@@ -67,7 +47,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -94,6 +73,7 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
   private CommandExecutor executor;
   private Capabilities capabilities;
   private SessionId sessionId;
+  private SessionQueryResult.SessionDescriptor sessionDescriptor = null ;
   private FileDetector fileDetector = new UselessFileDetector();
   private ExecuteMethod executeMethod;
 
@@ -171,7 +151,7 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
       final URL remoteAddress,
       final Capabilities desiredCapabilities
   ) throws IOException {
-    this( new HttpCommandExecutor( remoteAddress ), desiredCapabilities ) ;
+    this( new HttpCommandExecutor2( remoteAddress ), desiredCapabilities ) ;
   }
 
 
@@ -197,34 +177,21 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
         session : for( final SessionQueryResult.SessionDescriptor sessionDescriptor :
             sessionQueryResult.sessionDescriptors
         ) {
-//          for( final Map.Entry< String, ? > desired : desiredCapabilities.asMap().entrySet() ) {
-//            final Object capability =
-//                sessionDescriptor.capabilities.getCapability( desired.getKey() ) ;
-//            if( ! NON_MATCHED_CAPABILITIES.contains( desired.getKey() ) ) {
-//              if( desired.getValue() != null &&
-//                  ! Objects.equals( capability, desired.getValue() )
-//              ) {
-//                break session ;
-//              }
-//            }
-//          }
+          // We could check for capabilities here but this would duplicate some work done
+          // when establishing the session.
           final Map< String, Object > capabilitiesAsmap = new HashMap<> (
               sessionDescriptor.capabilities.asMap() ) ;
           capabilitiesAsmap.put(
               "driver.version", desiredCapabilities.getCapability( "driver.version") ) ;
           this.capabilities = new ImmutableCapabilities( capabilitiesAsmap ) ;
           sessionId = sessionDescriptor.id ;
+          this.sessionDescriptor = sessionDescriptor ;
           logger.info( "Reusing existing " + SessionId.class.getSimpleName() + " " + sessionId +
-              " from session container, with compatible capabilities." ) ;
+              " from session container, hoping for compatible capabilities." ) ;
         }
       }
     }
   }
-
-  private static final ImmutableSet< String > NON_MATCHED_CAPABILITIES = ImmutableSet.of(
-      "driver.version",
-      CapabilityType.VERSION
-  ) ;
 
   public static SessionQueryResult decodeSessions( final String json ) {
     final JsonToBeanConverter jsonToBeanConverter = new JsonToBeanConverter() ;
@@ -696,14 +663,14 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
     Command command = new Command( sessionId, driverCommand, parameters ) ;
     Response response ;
 
-    long start = System.currentTimeMillis();
-    String currentName = Thread.currentThread().getName();
+    long start = System.currentTimeMillis() ;
+    String currentName = Thread.currentThread().getName() ;
     Thread.currentThread().setName(
-        String.format( "Forwarding %s on session %s to remote", driverCommand, sessionId ) );
+        String.format( "Forwarding %s on session %s to remote", driverCommand, sessionId ) ) ;
     try {
-      log( sessionId, command.getName(), command, RemoteWebDriver2.When.BEFORE );
-      response = executor.execute( command );
-      log( sessionId, command.getName(), command, RemoteWebDriver2.When.AFTER );
+      log( sessionId, command.getName(), command, RemoteWebDriver2.When.BEFORE ) ;
+      response = executor.execute( command ) ;
+      log( sessionId, command.getName(), command, RemoteWebDriver2.When.AFTER ) ;
 
       if( response == null ) {
         return null;
