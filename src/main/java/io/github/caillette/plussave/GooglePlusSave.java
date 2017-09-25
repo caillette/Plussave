@@ -1,17 +1,16 @@
 package io.github.caillette.plussave;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Attribute;
-import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.openqa.selenium.By;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.remote.RemoteWebDriver2;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
 import javax.swing.JOptionPane;
 import java.net.MalformedURLException;
@@ -19,23 +18,28 @@ import java.net.URL;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
  * <h1>Prerequisites</h1>
  * <p>
- * Install geckodriver for Firefox.
+ * Install geckodriver for Firefox (may imply full rebuild of Rust and Firefox).
  * <pre>
  * brew install geckodriver
  * </pre>
  * <p>
- * Run a Selenium Server (same as a Hub and a single Node):
+ * Run a Selenium Server locally (behaves just as a Hub and a single Node):
  * <pre>
  * java -jar ~/Downloads/selenium-server-standalone-3.5.3.jar -role standalone
  * </pre>
  * Default port for Hub is 4444.
  */
 public class GooglePlusSave {
+
+  private static final String MESSAGE_LOADING_MORE_POSTS = "Wait while more posts are being loaded" ;
+  private static final String MESSAGE_MORE_POSTS_LOADED = "New content loaded successfully" ;
+  private static final String MESSAGE_ALL_POSTS_LOADED = "Looks like you've reached the end" ;
 
   public static void main( final String... arguments ) throws Exception {
     final String profileName = "LaurentCaillette" ;
@@ -53,8 +57,24 @@ public class GooglePlusSave {
       JOptionPane.showMessageDialog( null, "Once signed in, press OK." ) ;
     }
 
-    for( int i = 0 ; i < 300 ; i ++ ) {
-      driver.executeScript( "window.scrollTo( 0, document.body.scrollHeight )") ;
+    // Contains all the posts, split in 3 columns.
+    final WebElement topElement = driver.findElement( By.xpath( "//c-wiz/div" ) ) ;
+
+    // After loading the page, this is the message that appears.
+    final WebElement loadingProgressWebElement = driver.findElement(
+        By.xpath( "//div[ not( div ) and contains( ., '" + MESSAGE_LOADING_MORE_POSTS + "' ) ]" ) ) ;
+
+    final WebDriverWait webDriverWait = new WebDriverWait( driver, 5, 100 ) ;
+
+    for( int i = 0 ; i < 1000 ; i ++ ) {  // Should swallow exceptions.
+      try {
+        driver.executeScript( "window.scrollTo( 0, document.body.scrollHeight )" ) ;
+        webDriverWait.until(
+            d -> loadingProgressWebElement.getText().contains( MESSAGE_MORE_POSTS_LOADED ) ) ;
+      } catch( final Exception ignore ) {
+        System.err.println(
+            "Swallowing " + ignore.getClass().getName() + ": " + ignore.getMessage() + "." ) ;
+      }
     }
 
     final List< WebElement > elements = driver.findElements( By.xpath( "//div[ " +
@@ -90,11 +110,12 @@ public class GooglePlusSave {
     if( links.isEmpty() ) {
       linkElement = null ;
     } else {
-      // The content of the 'a' element is a lot of div we don't want here.
+      // The content of the 'a' element is a lot of 'div' we don't want.
       linkElement = new Element( "a" ) ;
       final String href = links.get( 0 ).getAttribute( "href" ) ;
       linkElement.attributes().put( new Attribute( "href", href ) ) ;
     }
+
     System.out.println(
         WebElement.class.getSimpleName() + ": " +
         articleTextHtml.replaceAll( "\n", "" ) + " " +
@@ -148,15 +169,8 @@ public class GooglePlusSave {
     if( anchorElement == null ) {
       return "" ;
     } else {
-      final StringBuilder stringBuilder = new StringBuilder() ;
-      stringBuilder
-          .append( "<a href='" )
-          .append( anchorElement.attr( "href" ) )
-          .append( "' >" )
-          .append( anchorElement.text() )
-          .append( "</a>" )
-      ;
-      return stringBuilder.toString() ;
+      return "<a href='" + anchorElement.attr( "href" ) + "' >" +
+          anchorElement.text() + "</a>" ;
     }
   }
 
