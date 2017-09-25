@@ -154,6 +154,10 @@ public class RemoteWebDriver2 extends RemoteWebDriver {
   }
 
 
+  public final boolean reusingSession() {
+    return sessionDescriptor != null ;
+  }
+
   /**
    * Query the hub for existing sessions.
    */
