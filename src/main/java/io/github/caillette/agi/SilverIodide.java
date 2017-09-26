@@ -62,7 +62,7 @@ public class SilverIodide {
     final WebDriverWait webDriverWait = new WebDriverWait( driver, 5, 100 ) ;
     final Blacklist< String > webElementIdentifiersAdded = new Blacklist<>() ;
 
-    for( int i = 0 ; i < 1000 ; i ++ ) {
+    for( int i = 0 ; i < 3 ; i ++ ) {
       try {
         processSomeElements( driver, webElementIdentifiersAdded ) ;
         driver.executeScript( "window.scrollTo( 0, document.body.scrollHeight )" ) ;
@@ -125,7 +125,17 @@ public class SilverIodide {
       linkElement = new Element( "a" ) ;
       final String href = links.get( 0 ).getAttribute( "href" ) ;
       linkElement.attributes().put( new Attribute( "href", href ) ) ;
-      // linkElement.text( ??? ) TODO: extract description.
+
+      final List< WebElement > linkContents = links.get( 0 ).findElements(
+          By.xpath( "./div[ not( div ) ]" ) ) ;  // No child.
+      if( ! linkContents.isEmpty() ) {
+        final String text0 = linkContents.get( 0 ).getText() ;
+        linkElement.text( text0 ) ;
+        if( linkContents.size() > 1 ) {
+          final String text1 = linkContents.get( 1 ).getText() ;
+          linkElement.attributes().put( new Attribute( "alt", text1 ) ) ;
+        }
+      }
     }
 
     System.out.println(
