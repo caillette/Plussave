@@ -1,4 +1,4 @@
-package io.github.caillette.plussave;
+package io.github.caillette.agi;
 
 import com.google.common.base.Preconditions;
 import org.jsoup.Jsoup;
@@ -33,7 +33,7 @@ import java.util.Set;
  * </pre>
  * Default port for Hub is 4444.
  */
-public class GooglePlusSave {
+public class SilverIodide {
 
   private static final String MESSAGE_LOADING_MORE_POSTS = "Wait while more posts are being loaded" ;
   private static final String MESSAGE_MORE_POSTS_LOADED = "New content loaded successfully" ;
@@ -125,6 +125,7 @@ public class GooglePlusSave {
       linkElement = new Element( "a" ) ;
       final String href = links.get( 0 ).getAttribute( "href" ) ;
       linkElement.attributes().put( new Attribute( "href", href ) ) ;
+      // linkElement.text( ??? ) TODO: extract description.
     }
 
     System.out.println(

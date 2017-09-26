@@ -1,4 +1,4 @@
-package io.github.caillette.plussave.selenium;
+package io.github.caillette.agi.selenium;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;

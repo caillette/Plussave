@@ -1,4 +1,4 @@
-package io.github.caillette.plussave;
+package io.github.caillette.agi;
 
 import java.util.HashSet;
 import java.util.Set;

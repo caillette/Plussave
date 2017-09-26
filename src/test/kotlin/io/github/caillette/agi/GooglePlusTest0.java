@@ -1,4 +1,4 @@
-package io.github.caillette.plussave;
+package io.github.caillette.agi;
 
 import org.junit.Test;
 import org.openqa.selenium.By;

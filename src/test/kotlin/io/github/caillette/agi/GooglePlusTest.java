@@ -1,24 +1,14 @@
-package io.github.caillette.plussave;
+package io.github.caillette.agi;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
 import com.google.common.io.Resources;
 import org.openqa.selenium.remote.RemoteWebDriver2;
 import org.openqa.selenium.remote.SessionQueryResult;
 import org.junit.Test;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.remote.DesiredCapabilities;
 
-import javax.swing.JOptionPane;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.List;
-import java.util.stream.Collectors;
 
-import static io.github.caillette.plussave.GooglePlusSave.HUB_URL;
+import static io.github.caillette.agi.SilverIodide.HUB_URL;
 
 /**
  *

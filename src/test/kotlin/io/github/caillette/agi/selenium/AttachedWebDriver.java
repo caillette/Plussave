@@ -1,4 +1,4 @@
-package io.github.caillette.plussave.selenium;
+package io.github.caillette.agi.selenium;
 
 import org.openqa.selenium.remote.Command;
 import org.openqa.selenium.remote.DesiredCapabilities;
